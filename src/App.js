@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
+import rockImage from './assets/rock.png';
+import paperImage from './assets/paper.png';
+import scissorsImage from './assets/scissors.png';
 
-const choices = ['rock', 'paper', 'scissors'];
+const choices = [
+  { name: 'rock', image: rockImage },
+  { name: 'paper', image: paperImage },
+  { name: 'scissors', image: scissorsImage },
+];
 
 const App = () => {
   const [playerChoice, setPlayerChoice] = useState(null);
@@ -11,7 +18,13 @@ const App = () => {
     const computerChoice = choices[Math.floor(Math.random() * choices.length)];
     setPlayerChoice(choice);
     setComputerChoice(computerChoice);
-    setResult(getResult(choice, computerChoice));
+    setResult(getResult(choice.name, computerChoice.name));
+
+    // Add a slight delay before resetting the choices
+    setTimeout(() => {
+      setPlayerChoice(null);
+      setComputerChoice(null);
+    }, 2000);
   };
 
   const getResult = (playerChoice, computerChoice) => {
@@ -33,15 +46,15 @@ const App = () => {
       <h1>Rock, Paper, Scissors</h1>
       <div className="choices">
         {choices.map((choice) => (
-          <button key={choice} onClick={() => handleChoice(choice)}>
-            {choice}
+          <button key={choice.name} onClick={() => handleChoice(choice)}>
+            <img src={choice.image} alt={choice.name} />
           </button>
         ))}
       </div>
       {playerChoice && (
         <div className="result">
-          <p>You chose: {playerChoice}</p>
-          <p>Computer chose: {computerChoice}</p>
+          <p>You chose: {playerChoice.name}</p>
+          <p>Computer chose: {computerChoice.name}</p>
           <p>{result}</p>
         </div>
       )}

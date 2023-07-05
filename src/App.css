@@ -3,9 +3,35 @@
   margin-top: 50px;
 }
 
+.choices {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
 .choices button {
   font-size: 18px;
   margin: 5px;
+  padding: 10px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+.choices button:hover {
+  transform: scale(1.1);
+}
+
+.choices button img {
+  width: 100px;
+  height: 100px;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+}
+
+.choices button:hover img {
+  opacity: 1;
 }
 
 .result p {
