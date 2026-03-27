@@ -1,17 +1,17 @@
 import React, { useReducer, useEffect, useCallback, useMemo } from 'react';
-import styled, { keyframes, ThemeProvider, css } from 'styled-components';
+import styled, { keyframes, ThemeProvider, css, createGlobalStyle } from 'styled-components';
 
-// --- 1. CONFIGURATION ---
-const STORAGE_KEY = 'nexus_rps_v13_stable';
+// --- 1. SETTINGS ---
+const STORAGE_KEY = 'overload_nexus_v21';
 
 const THEME = {
   colors: {
-    bg: '#050508',
-    surface: '#121217',
+    bg: '#010103',
+    surface: '#0d0d12',
     primary: '#00f2ff',
+    overload: '#ffaa00',
     success: '#00ff88',
     danger: '#ff0055',
-    warning: '#ffcc00',
     text: '#ffffff',
   }
 };
@@ -22,237 +22,196 @@ const CHOICES = {
   SCISSORS: { name: 'Scissors', emoji: '✌️', beats: 'PAPER', color: '#4da6ff' },
 };
 
-// --- 2. ANIMATIONS (Strictly Tagged) ---
-const shakeKeyframes = keyframes`
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-8px); }
-  75% { transform: translateX(8px); }
-`;
+// --- 2. DYNAMIC REGISTRY (Strict v4+ Compliance) ---
+const FX = {
+  warp: keyframes`
+    0% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.02); filter: brightness(1.5); }
+    100% { transform: scale(1); filter: brightness(1); }
+  `,
+  bgMove: keyframes`
+    from { background-position: 0 0; }
+    to { background-position: 0 50px; }
+  `,
+  alert: keyframes`
+    0%, 100% { border-color: rgba(255, 170, 0, 0.2); }
+    50% { border-color: rgba(255, 170, 0, 1); box-shadow: 0 0 20px #ffaa0044; }
+  `
+};
 
-const entranceKeyframes = keyframes`
-  from { opacity: 0; transform: translateY(10px) scale(0.9); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-`;
-
-const hyperGlowKeyframes = keyframes`
-  0%, 100% { box-shadow: 0 0 5px #00f2ff; border-color: rgba(0, 242, 255, 0.3); }
-  50% { box-shadow: 0 0 20px #00f2ff; border-color: rgba(0, 242, 255, 1); }
-`;
-
-// --- 3. STATE ENGINE ---
+// --- 3. CORE LOGIC ---
 const getInitialState = () => {
   const saved = localStorage.getItem(STORAGE_KEY);
   return saved ? JSON.parse(saved) : {
-    history: [],
     score: 0,
+    integrity: 100,
     streak: 0,
-    status: 'IDLE', 
+    status: 'IDLE',
     player: null,
     cpu: null,
-    lastResult: null,
-    isProcessing: false
+    history: [],
+    processing: false
   };
 };
 
 function gameReducer(state, action) {
   switch (action.type) {
-    case 'START': 
-      return { ...state, status: 'BATTLE', player: action.payload, isProcessing: true };
+    case 'START': return { ...state, status: 'BATTLE', player: action.payload, processing: true };
     case 'RESOLVE':
-      const { cpu, result } = action.payload;
+      const { cpu, result, key } = action.payload;
+      const isOverload = state.streak >= 3;
       const newStreak = result === 'WIN' ? state.streak + 1 : result === 'LOSE' ? 0 : state.streak;
+      
+      // Penalty: Overload losses hurt more
+      const dmg = result === 'LOSE' ? (isOverload ? 30 : 15) : (result === 'WIN' ? -5 : 0);
+      const points = result === 'WIN' ? (isOverload ? 3 : 1) : 0;
+
       return {
         ...state,
         status: 'RESULT',
         cpu,
-        lastResult: result,
+        score: state.score + points,
         streak: newStreak,
-        score: result === 'WIN' ? state.score + (newStreak >= 3 ? 2 : 1) : result === 'LOSE' ? state.score - 1 : state.score,
-        history: [{ result, id: Date.now() }, ...state.history].slice(0, 10),
-        isProcessing: false
+        integrity: Math.max(0, Math.min(100, state.integrity - dmg)),
+        history: [key, ...state.history].slice(0, 10),
+        processing: false
       };
-    case 'RESET': return { ...state, status: 'IDLE', player: null, cpu: null, lastResult: null };
-    case 'PURGE': return { ...getInitialState(), score: 0, history: [] };
+    case 'RESET': return { ...state, status: 'IDLE', player: null, cpu: null };
+    case 'WIPE': return { ...getInitialState(), score: 0 };
     default: return state;
   }
 }
 
-// --- 4. STYLED COMPONENTS (Strict v4+ Compliance) ---
-const Layout = styled.div`
-  min-height: 100vh;
-  background: ${p => p.theme.colors.bg};
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  padding: 20px;
-  font-family: 'Inter', -apple-system, sans-serif;
+// --- 4. STYLED COMPONENTS ---
+const GlobalStyle = createGlobalStyle`
+  body { background: #010103; margin: 0; font-family: 'Inter', sans-serif; overflow: hidden; }
+  body::before {
+    content: ""; position: fixed; inset: -50%;
+    background-image: linear-gradient(rgba(0, 242, 255, 0.03) 1px, transparent 1px), 
+                      linear-gradient(90deg, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px; transform: perspective(500px) rotateX(60deg);
+    /* Speed up background during Overload */
+    animation: ${FX.bgMove} ${p => p.$isOverload ? '0.5s' : '2s'} linear infinite;
+  }
 `;
 
-const MainCard = styled.div`
-  width: 100%;
-  max-width: 400px;
-  background: ${p => p.theme.colors.surface};
-  border-radius: 32px;
-  padding: 2.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  position: relative;
+const Core = styled.div`
+  width: 100%; max-width: 440px; background: ${p => p.theme.colors.surface};
+  border-radius: 40px; padding: 3rem; position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 
-  /* THE CRITICAL FIX: Every animation trigger is wrapped in a css tag block */
-  ${p => p.$isLosing && css`
-    animation: ${shakeKeyframes} 0.4s cubic-bezier(.36,.07,.19,.97) both;
-  `}
-
-  ${p => p.$isHyper && css`
-    animation: ${hyperGlowKeyframes} 2s infinite ease-in-out;
-  `}
+  ${p => p.$isOverload && css`animation: ${FX.alert} 1s infinite;`}
+  ${p => p.$isProcessing && css`animation: ${FX.warp} 0.4s ease;`}
 `;
 
-const StatGrid = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-  span { font-size: 0.6rem; letter-spacing: 2px; opacity: 0.4; display: block; }
-  strong { font-size: 2rem; font-weight: 800; color: ${p => p.theme.colors.primary}; }
+const HUD = styled.div`
+  display: flex; justify-content: space-between; font-size: 0.65rem;
+  letter-spacing: 2px; color: ${p => p.$isOverload ? p.theme.colors.overload : p.theme.colors.primary};
+  margin-bottom: 2rem; font-weight: 900;
 `;
 
-const PlayArea = styled.div`
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin: 2rem 0;
+const Slot = styled.button`
+  flex: 1; aspect-ratio: 1/1; background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 24px;
+  font-size: 2.5rem; cursor: pointer; transition: 0.2s;
   
-  ${p => p.$animate && css`
-    animation: ${entranceKeyframes} 0.5s ease-out;
-  `}
-`;
-
-const IconBtn = styled.button`
-  flex: 1;
-  aspect-ratio: 1/1;
-  background: rgba(255, 255, 255, 0.03);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  font-size: 2.4rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
   &:hover:not(:disabled) {
-    border-color: ${p => p.$color};
-    background: ${p => p.$color}15;
-    transform: translateY(-5px);
+    transform: translateY(-5px); border-color: ${p => p.$color};
+    box-shadow: 0 5px 15px ${p => p.$color}33;
   }
 
-  &:disabled {
-    opacity: ${p => p.$active ? 1 : 0.1};
+  &:disabled { 
+    opacity: ${p => p.$active ? 1 : 0.05}; 
     border-color: ${p => p.$active ? p.$color : 'transparent'};
   }
 `;
 
-const ResultBanner = styled.div`
-  text-align: center;
-  ${css`animation: ${entranceKeyframes} 0.3s ease;`}
-  h2 { font-size: 2.2rem; margin: 0; color: ${p => p.theme.colors[p.$res === 'WIN' ? 'success' : p.$res === 'LOSE' ? 'danger' : 'warning']}; }
-`;
-
-const ActionBtn = styled.button`
-  width: 100%;
-  padding: 1.2rem;
-  border-radius: 12px;
-  border: none;
-  background: white;
-  color: black;
-  font-weight: 900;
-  text-transform: uppercase;
-  margin-top: 1.5rem;
-  cursor: pointer;
-  &:hover { background: #eee; }
-`;
-
-const LogDot = styled.div`
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: ${p => p.$res === 'WIN' ? '#00ff88' : p.$res === 'LOSE' ? '#ff0055' : '#444'};
-`;
-
-// --- 5. MAIN COMPONENT ---
+// --- 5. MAIN LOGIC ---
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, null, getInitialState);
+  const isOverload = state.streak >= 3;
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }, [state]);
 
-  const winRate = useMemo(() => {
-    const total = state.history.filter(h => h.result !== 'TIE').length;
-    return total === 0 ? 0 : Math.round((state.history.filter(h => h.result === 'WIN').length / total) * 100);
-  }, [state.history]);
-
-  const onChoice = useCallback((key) => {
-    if (state.isProcessing || state.status !== 'IDLE') return;
+  const execute = useCallback((key) => {
+    if (state.processing || state.status !== 'IDLE') return;
     dispatch({ type: 'START', payload: CHOICES[key] });
+
+    // Speed up logic during Overload
+    const delay = isOverload ? 400 : 800;
 
     setTimeout(() => {
       const keys = Object.keys(CHOICES);
-      const cpuKey = keys[Math.floor(Math.random() * 3)];
-      let res = 'TIE';
-      if (CHOICES[key].beats === cpuKey) res = 'WIN';
-      else if (CHOICES[cpuKey].beats === key) res = 'LOSE';
+      // AI Logic: Counter the user's most frequent move if in Overload
+      let cpuKey;
+      if (isOverload) {
+        const counts = state.history.reduce((a,v) => { a[v] = (a[v]||0)+1; return a; }, {});
+        const fav = Object.keys(counts).reduce((a,b) => counts[a] > counts[b] ? a : b, keys[0]);
+        cpuKey = keys.find(k => CHOICES[k].beats === fav);
+      } else {
+        cpuKey = keys[Math.floor(Math.random() * 3)];
+      }
 
-      dispatch({ type: 'RESOLVE', payload: { cpu: CHOICES[cpuKey], result: res } });
-    }, 800);
-  }, [state.isProcessing, state.status]);
+      const res = CHOICES[key].beats === cpuKey ? 'WIN' : cpuKey === key ? 'TIE' : 'LOSE';
+      dispatch({ type: 'RESOLVE', payload: { cpu: CHOICES[cpuKey], result: res, key } });
+    }, delay);
+  }, [state.processing, state.status, state.history, isOverload]);
 
   return (
     <ThemeProvider theme={THEME}>
-      <Layout>
-        <MainCard $isLosing={state.lastResult === 'LOSE'} $isHyper={state.streak >= 3}>
-          <StatGrid>
-            <div><span>CREDITS</span><strong>{state.score}</strong></div>
-            <div style={{ textAlign: 'right' }}><span>SUCCESS</span><strong>{winRate}%</strong></div>
-          </StatGrid>
+      <GlobalStyle $isOverload={isOverload} />
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <Core $isProcessing={state.processing} $isOverload={isOverload}>
+          <HUD $isOverload={isOverload}>
+            <span>{isOverload ? 'NEURAL_OVERLOAD: ACTIVE' : 'SYSTEM_STABLE'}</span>
+            <span>{state.score} UNITS</span>
+          </HUD>
 
-          {state.status === 'IDLE' ? (
-            <PlayArea $animate>
-              {Object.keys(CHOICES).map(key => (
-                <IconBtn key={key} $color={CHOICES[key].color} onClick={() => onChoice(key)}>
-                  {CHOICES[key].emoji}
-                </IconBtn>
-              ))}
-            </PlayArea>
-          ) : (
-            <div>
-              <PlayArea>
-                <IconBtn disabled $active $color={state.player.color}>{state.player.emoji}</IconBtn>
+          <div style={{ display: 'flex', gap: '15px', margin: '2rem 0' }}>
+            {state.status === 'IDLE' ? (
+              Object.keys(CHOICES).map(k => (
+                <Slot key={k} $color={CHOICES[k].color} onClick={() => execute(k)}>{CHOICES[k].emoji}</Slot>
+              ))
+            ) : (
+              <>
+                <Slot disabled $active $color={state.player.color}>{state.player.emoji}</Slot>
                 <div style={{ alignSelf: 'center', opacity: 0.1 }}>VS</div>
-                <IconBtn disabled $active $color={state.cpu?.color}>
-                  {state.status === 'BATTLE' ? '⋯' : state.cpu.emoji}
-                </IconBtn>
-              </PlayArea>
+                <Slot disabled $active $color={state.cpu?.color}>{state.status === 'BATTLE' ? '?' : state.cpu.emoji}</Slot>
+              </>
+            )}
+          </div>
 
-              {state.status === 'RESULT' && (
-                <ResultBanner $res={state.lastResult}>
-                  <h2>{state.lastResult === 'TIE' ? 'PHASE LOCK' : `YOU ${state.lastResult}`}</h2>
-                  <ActionBtn onClick={() => dispatch({ type: 'RESET' })}>CONTINUE</ActionBtn>
-                </ResultBanner>
-              )}
+          <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ 
+              height: '100%', width: `${state.integrity}%`, 
+              background: state.integrity < 40 ? THEME.colors.danger : isOverload ? THEME.colors.overload : THEME.colors.success,
+              transition: '0.4s width cubic-bezier(0,1,0,1)' 
+            }} />
+          </div>
+
+          {state.status === 'RESULT' && (
+            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+              <h2 style={{ 
+                margin: 0, 
+                color: THEME.colors[state.streak === 0 ? 'danger' : 'success'],
+                fontSize: isOverload ? '2rem' : '1.5rem'
+              }}>
+                {state.streak === 0 ? 'BREACH_DETECTED' : isOverload ? 'CRITICAL_SYNC' : 'NODE_SECURED'}
+              </h2>
+              <button 
+                onClick={() => dispatch({ type: 'RESET' })}
+                style={{ 
+                  width: '100%', padding: '1rem', background: 'white', border: 'none', 
+                  fontWeight: 900, marginTop: '1.5rem', cursor: 'pointer', borderRadius: '12px' 
+                }}
+              >
+                CONTINUE
+              </button>
             </div>
           )}
-
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '40px' }}>
-            {state.history.map(h => <LogDot key={h.id} $res={h.result} />)}
-          </div>
-        </MainCard>
-
-        <button 
-          onClick={() => { if(window.confirm('Wipe system data?')) dispatch({ type: 'PURGE' }); }}
-          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.1)', marginTop: '2.5rem', cursor: 'pointer', fontSize: '0.7rem' }}
-        >
-          RESET SYSTEM CACHE
-        </button>
-      </Layout>
+        </Core>
+      </div>
     </ThemeProvider>
   );
 }
